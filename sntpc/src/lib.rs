@@ -115,8 +115,6 @@ use core::fmt::Debug;
 use core::iter::Iterator;
 use core::marker::Copy;
 use core::mem;
-#[cfg(feature = "log")]
-use core::str;
 
 pub mod net {
     #[cfg(not(feature = "std"))]
@@ -258,6 +256,8 @@ pub mod net {
     pub use std::net::{ToSocketAddrs, UdpSocket};
 }
 
+#[cfg(all(feature = "defmt", not(feature = "log")))]
+use defmt::debug;
 #[cfg(feature = "log")]
 use log::debug;
 
@@ -599,7 +599,7 @@ where
     let (response, src) = socket.recv_from(response_buf.0.as_mut())?;
     context.timestamp_gen.init();
     let recv_timestamp = get_ntp_timestamp(&context.timestamp_gen);
-    #[cfg(feature = "log")]
+    #[cfg(any(feature = "log", feature = "defmt"))]
     debug!("Response: {}", response);
 
     match dest.to_socket_addrs() {
@@ -618,7 +618,7 @@ where
     let result =
         process_response(send_req_result, response_buf, recv_timestamp);
 
-    #[cfg(feature = "log")]
+    #[cfg(any(feature = "log", feature = "defmt"))]
     if let Ok(r) = &result {
         debug!("{:?}", r);
     }
@@ -664,7 +664,7 @@ fn process_response(
     let mut packet = NtpPacket::from(resp);
 
     convert_from_network(&mut packet);
-    #[cfg(feature = "log")]
+    #[cfg(any(feature = "log", feature = "defmt"))]
     debug_ntp_packet(&packet, recv_timestamp);
 
     if send_req_result.originate_timestamp != packet.origin_timestamp {
@@ -710,7 +710,7 @@ fn process_response(
     let offset = offset_calculate(t1, t2, t3, t4, units);
     let timestamp = NtpTimestamp::from(packet.tx_timestamp);
 
-    #[cfg(feature = "log")]
+    #[cfg(any(feature = "log", feature = "defmt"))]
     debug!(
         "Roundtrip delay: {} {}. Offset: {} {}",
         roundtrip, units, offset, units
@@ -800,12 +800,13 @@ fn offset_calculate(t1: u64, t2: u64, t3: u64, t4: u64, units: Units) -> i64 {
     }
 }
 
-#[cfg(feature = "log")]
+#[cfg(any(feature = "log", feature = "defmt"))]
 fn debug_ntp_packet(packet: &NtpPacket, recv_timestamp: u64) {
     let mode = shifter(packet.li_vn_mode, MODE_MASK, MODE_SHIFT);
     let version = shifter(packet.li_vn_mode, VERSION_MASK, VERSION_SHIFT);
     let li = shifter(packet.li_vn_mode, LI_MASK, LI_SHIFT);
-    let delimiter_gen = || unsafe { str::from_utf8_unchecked(&[b'='; 64]) };
+    let delimiter_gen =
+        || unsafe { core::str::from_utf8_unchecked(&[b'='; 64]) };
 
     debug!("{}", delimiter_gen());
     debug!("| Mode:\t\t{}", mode);
@@ -818,25 +819,39 @@ fn debug_ntp_packet(packet: &NtpPacket, recv_timestamp: u64) {
     debug!("| Root dispersion:\t{}", packet.root_dispersion);
     debug!(
         "| Reference ID:\t\t{}",
-        str::from_utf8(&packet.ref_id.to_be_bytes()).unwrap_or("")
+        core::str::from_utf8(&packet.ref_id.to_be_bytes()).unwrap_or("")
     );
-    debug!(
-        "| Origin timestamp    (client):\t{:>16}",
-        packet.origin_timestamp
-    );
-    debug!(
-        "| Receive timestamp   (server):\t{:>16}",
-        packet.recv_timestamp
-    );
-    debug!(
-        "| Transmit timestamp  (server):\t{:>16}",
-        packet.tx_timestamp
-    );
-    debug!("| Receive timestamp   (client):\t{:>16}", recv_timestamp);
-    debug!(
-        "| Reference timestamp (server):\t{:>16}",
-        packet.ref_timestamp
-    );
+    #[cfg(feature = "log")]
+    {
+        debug!(
+            "| Origin timestamp    (client):\t{:>16}",
+            packet.origin_timestamp
+        );
+        debug!(
+            "| Receive timestamp   (server):\t{:>16}",
+            packet.recv_timestamp
+        );
+        debug!(
+            "| Transmit timestamp  (server):\t{:>16}",
+            packet.tx_timestamp
+        );
+        debug!("| Receive timestamp   (client):\t{:>16}", recv_timestamp);
+        debug!(
+            "| Reference timestamp (server):\t{:>16}",
+            packet.ref_timestamp
+        );
+    }
+    #[cfg(all(feature = "defmt", not(feature = "log")))]
+    {
+        debug!(
+            "| Origin timestamp    (client):\t{}",
+            packet.origin_timestamp
+        );
+        debug!("| Receive timestamp   (server):\t{}", packet.recv_timestamp);
+        debug!("| Transmit timestamp  (server):\t{}", packet.tx_timestamp);
+        debug!("| Receive timestamp   (client):\t{}", recv_timestamp);
+        debug!("| Reference timestamp (server):\t{}", packet.ref_timestamp);
+    }
     debug!("{}", delimiter_gen());
 }
 

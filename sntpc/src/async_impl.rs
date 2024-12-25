@@ -10,6 +10,8 @@ use core::fmt::Debug;
 #[cfg(feature = "tokio")]
 use tokio::net::{lookup_host, ToSocketAddrs};
 
+#[cfg(all(feature = "defmt", not(feature = "log")))]
+use defmt::debug;
 #[cfg(feature = "log")]
 use log::debug;
 
@@ -21,7 +23,7 @@ where
 {
     #[allow(unused_variables)]
     host.to_socket_addrs().map_err(|e| {
-        #[cfg(feature = "log")]
+        #[cfg(any(feature = "log"))]
         debug!("ToSocketAddrs: {:?}", e);
         Error::AddressResolve
     })
@@ -164,7 +166,7 @@ where
     let (response, src) = socket.recv_from(response_buf.0.as_mut()).await?;
     context.timestamp_gen.init();
     let recv_timestamp = get_ntp_timestamp(&context.timestamp_gen);
-    #[cfg(feature = "log")]
+    #[cfg(any(feature = "log", feature = "defmt"))]
     debug!("Response: {}", response);
 
     match lookup_host(dest).await {
@@ -183,9 +185,9 @@ where
     let result =
         process_response(send_req_result, response_buf, recv_timestamp);
 
-    #[cfg(feature = "log")]
+    #[cfg(any(feature = "log", feature = "defmt"))]
     if let Ok(r) = &result {
-        debug!("{r:?}");
+        debug!("{:?}", r);
     }
 
     result

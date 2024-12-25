@@ -2,6 +2,8 @@ use core::fmt::Formatter;
 use core::fmt::{Debug, Display};
 use core::mem;
 
+#[cfg(all(feature = "defmt", not(feature = "log")))]
+use defmt::debug;
 #[cfg(feature = "log")]
 use log::debug;
 
@@ -75,6 +77,7 @@ impl From<u64> for NtpTimestamp {
 /// Helper enum for specification delay units
 #[allow(dead_code)]
 #[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub(crate) enum Units {
     Milliseconds,
     Microseconds,
@@ -94,6 +97,7 @@ impl Display for Units {
 /// The error type for SNTP client
 /// Errors originate on network layer or during processing response from a NTP server
 #[derive(Debug, PartialEq, Copy, Clone)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[non_exhaustive]
 pub enum Error {
     /// Origin timestamp value in a NTP response differs from the value
@@ -120,6 +124,7 @@ pub enum Error {
 
 /// SNTP request result representation
 #[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct NtpResult {
     /// NTP server seconds value
     pub seconds: u32,
@@ -214,6 +219,8 @@ impl NtpPacket {
 
         #[cfg(feature = "log")]
         debug!(target: "NtpPacket::new", "{}", tx_timestamp);
+        #[cfg(all(feature = "defmt", not(feature = "log")))]
+        debug!("NtpPacket::new {}", tx_timestamp);
 
         NtpPacket {
             li_vn_mode: NtpPacket::SNTP_CLIENT_MODE | NtpPacket::SNTP_VERSION,
