@@ -2,6 +2,8 @@ use core::fmt::Formatter;
 use core::fmt::{Debug, Display};
 use core::mem;
 
+#[cfg(feature = "defmt")]
+use defmt::debug;
 #[cfg(feature = "log")]
 use log::debug;
 
@@ -94,6 +96,7 @@ impl Display for Units {
 /// The error type for SNTP client
 /// Errors originate on network layer or during processing response from a NTP server
 #[derive(Debug, PartialEq, Copy, Clone)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[non_exhaustive]
 pub enum Error {
     /// Origin timestamp value in a NTP response differs from the value
@@ -214,6 +217,8 @@ impl NtpPacket {
 
         #[cfg(feature = "log")]
         debug!(target: "NtpPacket::new", "{}", tx_timestamp);
+        #[cfg(feature = "defmt")]
+        debug!("NtpPacket::new {}", tx_timestamp);
 
         NtpPacket {
             li_vn_mode: NtpPacket::SNTP_CLIENT_MODE | NtpPacket::SNTP_VERSION,

@@ -4,6 +4,9 @@ use crate::types::{
 };
 use crate::{get_ntp_timestamp, process_response};
 use core::fmt::Debug;
+
+#[cfg(feature = "defmt")]
+use defmt::debug;
 #[cfg(feature = "log")]
 use log::debug;
 
@@ -22,7 +25,7 @@ where
 {
     #[allow(unused_variables)]
     host.to_socket_addrs().map_err(|e| {
-        #[cfg(feature = "log")]
+        #[cfg(any(feature = "log", feature = "defmt"))]
         debug!("ToSocketAddrs: {:?}", e);
         Error::AddressResolve
     })
@@ -52,11 +55,7 @@ pub trait NtpUdpSocket {
 
 #[cfg(feature = "embassy")]
 impl NtpUdpSocket for &embassy_net::udp::UdpSocket<'_> {
-    async fn send_to(
-        &self,
-        buf: &[u8],
-        addr: SocketAddr,
-    ) -> Result<usize> {
+    async fn send_to(&self, buf: &[u8], addr: SocketAddr) -> Result<usize> {
         let saddr: SocketAddr = addr
             .to_socket_addrs()
             .map_err(|_| Error::AddressResolve)?
@@ -124,7 +123,7 @@ where
     U: NtpUdpSocket,
     T: NtpTimestampGenerator + Copy,
 {
-    #[cfg(feature = "log")]
+    #[cfg(any(feature = "log", feature = "defmt"))]
     debug!("Address: {:?}", dest);
     let request = NtpPacket::new(context.timestamp_gen);
 
@@ -132,7 +131,7 @@ where
     Ok(SendRequestResult::from(request))
 }
 
-async fn send_request< U: NtpUdpSocket>(
+async fn send_request<U: NtpUdpSocket>(
     dest: SocketAddr,
     req: &NtpPacket,
     socket: &U,
@@ -171,7 +170,7 @@ where
     let (response, src) = socket.recv_from(response_buf.0.as_mut()).await?;
     context.timestamp_gen.init();
     let recv_timestamp = get_ntp_timestamp(&context.timestamp_gen);
-    #[cfg(feature = "log")]
+    #[cfg(any(feature = "log", feature = "defmt"))]
     debug!("Response: {}", response);
 
     match lookup_host(dest).await {
@@ -190,9 +189,9 @@ where
     let result =
         process_response(send_req_result, response_buf, recv_timestamp);
 
-    #[cfg(feature = "log")]
+    #[cfg(any(feature = "log", feature = "defmt"))]
     if let Ok(r) = &result {
-        debug!("{r:?}");
+        debug!("{:?}", r);
     }
 
     result
@@ -201,7 +200,7 @@ where
 /// # Errors
 ///
 /// Will return `Err` if an SNTP request cannot be sent or SNTP response fails
-pub async fn get_time< U, T>(
+pub async fn get_time<U, T>(
     pool_addrs: SocketAddr,
     socket: U,
     context: NtpContext<T>,
